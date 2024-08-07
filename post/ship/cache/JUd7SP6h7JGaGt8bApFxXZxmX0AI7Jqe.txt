@@ -1,0 +1,163 @@
+module.exports.config = {
+    name: "doctruyenv2",
+    version: "1.0.0",
+    hasPermssion: 0,
+    credits: "Hakira",
+    description: "Đọc truyện",
+    commandCategory: "Tiện ích",
+    usages: "",
+    cooldowns: 5
+};
+const axios = require('axios')
+const cheerio = require('cheerio')
+
+
+module.exports.run = async function ({ api, event, args, Threads, Users }) {
+    try {
+        var obj = [], img = [], msg = "";
+        if (!args[0] || args[0].toUpperCase() == 'NEW') {
+            const resp = await axios.get('https://truyentranh1.com/')
+            var $ = cheerio.load(resp.data)
+            var dt = $('div.container-lm > section:eq(0) > div.item-medium')
+            dt.each((index, element) => {
+                var name = $(element).find('.item-title > a').text(),
+                    link = $(element).find('.item-title > a').attr('href'),
+                    thumbnail = $(element).find('.item-thumbnail > img').attr('data-src')
+                obj.push({ name, link, thumbnail })
+            })
+            for (i = 0; i < 5; i++) {
+                msg += `- Tên: ${obj[i].name}\n- Link: https://truyentranh1.com${obj[i].link}\n\n`
+                const t = (await axios.get(`${obj[i].thumbnail}`, {
+                    responseType: "stream"
+                })).data;
+                img.push(t)
+            }
+            return api.sendMessage({ body: msg, attachment: img }, event.threadID, (err, info) => {
+                return global.client.handleReply.push({
+                    step: 0,
+                    name: this.config.name,
+                    info: obj,
+                    author: event.senderID,
+                    messageID: info.messageID
+                });
+            }, event.messageID)
+        }
+        if (args[0] == 'find' || args[0] == 'search') {
+            var names = args.splice(1).join(" ")
+            const resp = await axios.get('https://truyentranh1.com/tim-kiem/' + encodeURI(names))
+            var $ = cheerio.load(resp.data)
+            var dt = $('section').find('div[class="item-medium"]')
+            dt.each((index, element) => {
+                var thumbnail = $(element).find('div[class="item-thumbnail"]').find('img').attr('data-src'),
+                    name = $(element).find('h3[class="item-title"]').text(),
+                    link = $(element).find('a').attr('href'),
+                    view = $(element).find('div[class="item-thumbnail"]').find('span').text();
+                obj.push({ thumbnail, name, link, view })
+            })
+            if (obj.length < 5) {
+                var ix = obj.length
+            } else {
+                var ix = 5
+            }
+            for (i = 0; i < ix; i++) {
+                msg += `- Tên: ${obj[i].name}\n- Lượt đọc: ${obj[i].view}\n- Link: https://truyentranh1.com${obj[i].link}\n\n`
+                const t = (await axios.get(`${obj[i].thumbnail}`, {
+                    responseType: "stream"
+                })).data;
+                img.push(t)
+            }
+            return api.sendMessage({ body: msg, attachment: img }, event.threadID, (err, info) => {
+                return global.client.handleReply.push({
+                    step: 0,
+                    name: this.config.name,
+                    info: obj,
+                    author: event.senderID,
+                    messageID: info.messageID
+                });
+            }, event.messageID)
+        }
+    } catch (e) {
+        console.log(e)
+    }
+}
+module.exports.handleReply = async function ({ api, event, args, handleReply, client, __GLOBAL, Threads, Users, Currencies }) {
+    try {
+        if (handleReply.author !== event.senderID) return
+      api.unsendMessage(handleReply.messageID);
+        if (handleReply.step == 0) {
+            const resp = await axios.get('https://truyentranh1.com' + handleReply.info[event.body - 1].link)
+            var $ = cheerio.load(resp.data)
+            var dec = $('div[class="manga-content"]').text(),
+                dec1 = dec.replace(/\n/, " ").replace("TruyenTranh24:", " ").replace("   ", ''),
+                view = $('div[class="manga-views"]').find('span').text(),
+                poster = $('div[class="manga-poster"]').find('img').attr('data-src'),
+                author = $('div[class="manga-author"]').find('span').text(),
+                legnth = $('div[class="manga-latest"]').find('a').text(),
+                leng = parseInt(legnth.replace('chap', ""));
+            const t = (await axios.get(`${poster}`, {
+                responseType: "stream"
+            })).data;
+            return api.sendMessage({
+                body: `- Mô tả: ${dec1}\n- Lượt đọc: ${view}\n- Tác giả: ${author}\n- Tổng chapter: ${leng}`,
+                attachment: t
+            }, event.threadID, (err, info) => {
+                return global.client.handleReply.push({
+                    step: 1,
+                    name: this.config.name,
+                    link: 'https://truyentranh1.com' + handleReply.info[event.body - 1].link,
+                    leng: leng,
+                    author: event.senderID,
+                    messageID: info.messageID
+                });
+            })
+        }
+        if (handleReply.step == 1) {
+            if (handleReply.leng < event.body) return api.sendMessage('Vui lòng không chọn chapter lớn hơn hiện có', event.threadID)
+            const reps = await axios.get(handleReply.link + '/chap-' + event.body)
+            var obj = []
+            var $ = cheerio.load(reps.data)
+            var ds = $('div[class="manga-content chapter"]').find('div[class="chapter-content"]').find('img')
+            ds.each(function () {
+                obj.push($(this).attr('data-src'))
+            })
+            const t = (await axios.get(`${obj[0]}`, {
+                responseType: "stream"
+            })).data;
+            return api.sendMessage({
+                body: "Nhấn Next để đọc tiếp",
+                attachment: t
+            }, event.threadID, (err, info) => {
+                return global.client.handleReply.push({
+                    step: 2,
+                    name: this.config.name,
+                    link: handleReply.link + '/chap-' + event.body,
+                    obj: obj,
+                    def: 0,
+                    author: event.senderID,
+                    messageID: info.messageID
+                });
+            })
+        }
+        if (handleReply.step == 2) {
+            //if (event.body.toUpperCase !== 'NEXT') return
+            const t = (await axios.get(`${handleReply.obj[ handleReply.def + 1]}`, {
+                responseType: "stream"
+            })).data;
+            return api.sendMessage({
+                body: "Nhấn Next để đọc tiếp",
+                attachment: t
+            }, event.threadID, (err, info) => {
+                return global.client.handleReply.push({
+                    step: 2,
+                    name: this.config.name,
+                    obj: handleReply.obj,
+                    def: handleReply.def += 1,
+                    author: event.senderID,
+                    messageID: info.messageID
+                });
+            })
+        }
+    } catch (e) {
+        console.log(e)
+    }
+}

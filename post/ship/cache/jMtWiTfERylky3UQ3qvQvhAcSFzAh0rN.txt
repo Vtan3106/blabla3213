@@ -1,0 +1,125 @@
+const axios = require("axios");
+const fs = require("fs-extra");
+const endPointMyApi = 'https://api-thanhali.thanhali.repl.co/crawl';
+const emojiToSendMessage = "❤";
+const emojiToPushApi = "👍";
+
+module.exports.config = {
+  name: "import",
+  credits: "NTKhang",
+  hasPermssion: 3,
+  description: "import/crawl data from a api",
+  usages: "< limit > < key1,key2... > < filename > < url endpoints >",
+  commandCategory: "Hệ thống"
+};
+
+
+module.exports.run = async ({ api, event, args }) => {
+  const {
+    threadID,
+    messageID,
+    senderID
+  } = event;
+  try {
+    // eslint-disable-next-line prefer-const
+    let [limit, key, fileName, url] = args;
+    if (!limit || !key || !fileName || !url)
+      return api.sendMessage("Sai cú pháp", threadID, messageID);
+    const folderName = fileName.split("/").slice(0, -1).join("/");
+    fileName = fileName.split("/").slice(-1)[0];
+    if (isNaN(limit))
+      return api.sendMessage("Limit phải là con số", threadID, messageID);
+    url = url.replace(/,/g, ".");
+    const pendings = [];
+    for (let i = 0; i < limit; i++) {
+      pendings.push(axios({
+        url,
+        method: "GET"
+      }));
+    }
+    const data = await Promise.allSettled(pendings);
+    let success = 0;
+    let failed = 0;
+    let newData = [];
+
+    const keys = key.split(',');
+    const firstKey = keys[0];
+
+    for (const item of data) {
+      if (item.status == "fulfilled") {
+        const value = {};
+        for (const key of keys)
+          value[key] = item.value.data[key];
+        if (newData.some(e => e[firstKey] == value[firstKey])) {
+          success++;
+          continue;
+        }
+        success++;
+        newData.push(value);
+      }
+      else
+        failed++;
+    }
+
+    if (keys.length == 1)
+      newData = newData.map(e => e[firstKey]);
+
+    const msg = `- Đã crawl thành công\n- Add: ${newData.length}\n- Thành công: ${success}\n- Thất bại: ${failed}\n- Thả cảm xúc "${emojiToSendMessage}" để gửi file về tin nhắn riêng hoặc "${emojiToPushApi}" để lưu vào API của bạn`;
+    return api.sendMessage(msg, threadID, async (err, info) => {
+      global.client.handleReaction.push({
+        name: this.config.name,
+        messageID: info.messageID,
+        author: senderID,
+        data: newData,
+        fileName,
+        folderName
+      });
+    }, messageID);
+  }
+  catch (e) {
+    console.log(e);
+    return api.sendMessage("Có lỗi xảy ra khi thực hiện lệnh", threadID, messageID);
+  }
+};
+
+module.exports.handleReaction = async ({ api, event, handleReaction }) => {
+  const { fileName, folderName, author, data } = handleReaction;
+  if (event.userID != author)
+    return;
+  if (event.reaction == emojiToSendMessage) {
+    const path = __dirname + `/cache/${fileName}`;
+    fs.writeFileSync(path, JSON.stringify(data, null, 2));
+    return api.sendMessage({
+      body: `File ${fileName} của bạn đây`,
+      attachment: fs.createReadStream(path)
+    }, event.userID, (err, info) => {
+      if (err) {
+        console.log(err);
+        return api.sendMessage("Có lỗi xảy ra khi thực hiện lệnh", event.threadID, event.messageID);
+      }
+      api.sendMessage(`File ${fileName} đã được gửi về tin nhắn riêng`, event.threadID, event.messageID);
+      fs.unlinkSync(path);
+    });
+  }
+  else if (event.reaction == emojiToPushApi) {
+    let res;
+    try {
+      await axios({
+        url: endPointMyApi,
+        method: "POST",
+        data: {
+          content: JSON.stringify(data, null, 2),
+          folder: folderName,
+          fileName
+        }
+      });
+      res = "Đã lưu thành công data vào API";
+      return api.sendMessage(res, event.threadID, event.messageID);
+    }
+    catch (e) {
+      console.log(e);
+      res = "Đã xảy ra lỗi khi lưu data vào API";
+      return api.sendMessage(res, event.threadID, event.messageID);
+    }
+  }
+};

@@ -1,0 +1,29 @@
+const configCommand = {
+    name: 'taokey',
+    version: '1.1.1',
+    hasPermssion: 1,
+    credits: 'DC-Nam',
+    description: 'beta',
+    commandCategory: 'TIỆN ÍCH',
+    usages: '[]',
+    cooldowns: 3
+},
+Axios = require('axios');
+
+async function runCommand(arg) {
+    const out = (a, b, c, d) => arg.api.sendMessage(a, b?b: arg.event.threadID, c?c: null, d?d: arg.event.messageID);
+    try {
+        const configRequest = {
+            url: `https://API-ThanhAli.thanhali.repl.co/apikey?keytype=register&nameuser=${Math.random()*999999999}`,
+            method: 'get'
+        };
+        const response = await Axios(configRequest);
+        out(Object.entries(response.data).map(d => `- ${d[0]}: ${d[1]}`).join('\n'));
+    } catch (e) {
+        out(e)}
+};
+
+module.exports = {
+    config: configCommand,
+    run: runCommand
+}

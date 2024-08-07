@@ -1,0 +1,47 @@
+module.exports.config = {
+    name: 'imdb',
+    version: '1.1.1',
+    hasPermssion: 0,
+    credits: 'ThanhAli',
+    description: 'Xem thông tin IMDB',
+    commandCategory: 'Tiện ích',
+    usages: '',
+    cooldowns: 2
+};
+const {
+    get
+} = require('axios');
+const {
+    image
+} = require('image-downloader');
+const {
+    createReadStream
+} = require('fs-extra');
+module.exports.run = async function({
+    api, event, args, Threads, Currencies
+}) {
+const content = args.join(" ");
+const res = await get(`https://api.popcat.xyz/imdb?q=${encodeURI(content)}`);
+        const {title,poster,released,runtime,genres,director,actors,boxoffice,languages,country,awards,rating,votes,imdburl} = res.data || {};
+        const dest = `${__dirname}/cache/test.png`;
+        await image({
+            url: poster, dest
+        });
+        api.sendMessage({
+            body: `\n
+→ Tiêu đề: ${title}
+→ Thời gian phát hành: ${released}
+→ Thời lượng: ${runtime}
+→ Thể loại: ${genres}
+→ Diễn viên: ${actors}
+→ Giám đốc sản xuất: ${director}
+→ Doanh thu: ${boxoffice}
+→ Ngôn ngữ: ${languages}
+→ Quốc gia: ${country}
+→ Giải thưởng: ${awards}
+→ Rating: ${rating}
+→ Lượt bình chọn: ${votes}
+→ Xem phim tại: ${imdburl}
+`.replace(/null|undefined/g, 'Không có dữ liệu'), attachment: createReadStream(dest)
+        }, event.threadID, event.messageID);
+    }

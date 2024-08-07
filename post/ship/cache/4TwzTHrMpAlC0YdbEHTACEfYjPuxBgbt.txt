@@ -1,0 +1,18 @@
+const axios = require('axios');
+
+module.exports.config = {
+	name: 'useragent',
+	version: '1.0.0',
+	hasPermssion: 0,
+	credits: 'NTKhang',
+	description: 'Lấy useragent random',
+	commandCategory: 'group',
+	usages: '',
+	cooldowns: 1
+};
+module.exports.run = async function ({
+	api, event
+}) {
+	const res = await axios.get('https://api-thanhali.thanhali.repl.co/random/useragent?apikey=ThanhAliVip_1234567890');
+	return api.sendMessage(JSON.stringify(res.data, null, 2), event.threadID, event.messageID);
+};

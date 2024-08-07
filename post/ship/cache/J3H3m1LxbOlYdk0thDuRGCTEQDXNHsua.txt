@@ -1,0 +1,104 @@
+const axios = require('axios');
+
+module.exports.config = {
+	name: 'soundcloud',
+	version: '1.0.0',
+	hasPermssion: 0,
+	credits: 'NTKhang',
+	description: 'Tải nhạc, tìm kiếm, xem thông tin từ SoundCloud về máy',
+	commandCategory: 'Tiện ích',
+	usages: '<dl|search|info> [link]',
+	cooldowns: 5
+};
+
+module.exports.run = async function ({
+	api, event, args
+}) {
+	switch (args[0]) {
+		case 'dl': {
+			const url = args[1];
+			if (!url || !/^(https?:\/\/)?(www.)?(m\.)?soundcloud\.com\/[\w\-\.]+(\/)+[\w\-\.]+/.test(url))
+				return api.sendMessage('Vui lòng nhập link SoundCloud', event.threadID, event.messageID);
+			const audioStream = await download(`https://API-ThanhAli.thanhali.repl.co/soundcloud/download?apikey=ThanhAliVip_1234567890&link=${encodeURIComponent(url)}`, 'sing.mp3');
+			return api.sendMessage({
+				attachment: audioStream
+			}, event.threadID, event.messageID);
+		}
+		case 'search': {
+			const query = args.slice(1).join(' ');
+			if (!query)
+				return api.sendMessage('Vui lòng nhập từ khóa', event.threadID, event.messageID);
+			const res = await axios.get(`https://API-ThanhAli.thanhali.repl.co/soundcloud/search?apikey=ThanhAliVip_1234567890&keyword=${encodeURIComponent(query)}`);
+			const results = res.data.collection;
+			if (!results.length)
+				return api.sendMessage('Không tìm thấy kết quả cho từ khóa này', event.threadID, event.messageID);
+			const max = results.length > 6 ? 6 : results.length;
+			let msg = 'Có ' + max + ' kết quả cho từ khóa ' + query + ':\n\n';
+			const attachments = [];
+			const downloadUrls = [];
+			for (let i = 0; i < max; i++) {
+				const el = results[i];
+				msg += `${i + 1}. ${el.title}\nLink: ${el.permalink_url}\nThích: ${el.likes_count}\nLượt nghe: ${el.playback_count}\nThời gian: ${convertTime(el.duration / 1000)}\n\n`;
+				downloadUrls.push(el.permalink_url);
+				attachments.push(download(el.artwork_url, `artwork_${i}.jpg`));
+			}
+			msg += '\nPhản hồi tin nhắn này với số thứ tự để tải nhạc'
+			return api.sendMessage({
+				body: msg,
+				attachment: await Promise.all(attachments)
+			}, event.threadID, (err, info) => {
+				global.client.handleReply.push({
+					name: this.config.name,
+					messageID: info.messageID,
+					downloadUrls,
+					author: event.senderID
+				});
+			}, event.messageID);
+		}
+
+		case 'info': {
+			const url = args[1];
+			if (!url || !/^(https?:\/\/)?(www.)?(m\.)?soundcloud\.com\/[\w\-\.]+(\/)+[\w\-\.]+/.test(url))
+				return api.sendMessage('Vui lòng nhập link SoundCloud', event.threadID, event.messageID);
+			const res = await axios.get(`https://API-ThanhAli.thanhali.repl.co/soundcloud/info?apikey=ThanhAliVip_1234567890&link=${encodeURIComponent(url)}`);
+			const info = res.data;
+			return api.sendMessage({
+				body: `Title: ${info.title}\nLink: ${info.permalink_url}\nThích: ${info.likes_count}\nLượt nghe: ${info.playback_count}\nThời gian: ${convertTime(info.duration / 1000)}\nNgày tải lên: ${new Date(info.created_at).toLocaleString()}\nTải lên bởi: ${info.user.username}\nDownload Url: ${info.media.transcodings[0].url}`,
+				attachment: await Promise.all([
+					download(info.artwork_url, 'artwork.jpg'),
+					download(info.user.avatar_url, 'avatar.jpg')
+				])
+			}, event.threadID, event.messageID);
+		}
+
+		default:
+			return api.sendMessage('Sai cú pháp', event.threadID, event.messageID);
+	}
+};
+
+module.exports.handleReply = async function ({ api, event, handleReply }) {
+	const { author, downloadUrls } = handleReply;
+	if (event.senderID !== author) return;
+	const index = parseInt(event.body) - 1;
+	if (isNaN(index) || index < 0 || index > downloadUrls.length)
+		return api.sendMessage("Số thứ tự không hợp lệ", event.threadID, event.messageID);
+	const url = downloadUrls[index];
+	api.sendMessage({
+		attachment: await download(`https://API-ThanhAli.thanhali.repl.co/soundcloud/download?apikey=ThanhAliVip_1234567890&link=${encodeURIComponent(url)}`, 'sing.mp3')
+	}, event.threadID, event.messageID);
+};
+
+function convertTime(time) {
+	// 119s => 1m 59s
+	const minutes = Math.floor(time / 60);
+	const seconds = time - minutes * 60;
+	return `${minutes}m ${Math.round(seconds)}s`;
+}
+
+async function download(url, path) {
+	const res = await axios.get(url, {
+		responseType: 'stream'
+	});
+	res.data.path = path;
+	return res.data;
+}

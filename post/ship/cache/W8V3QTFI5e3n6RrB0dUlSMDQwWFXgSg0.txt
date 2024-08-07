@@ -1,0 +1,55 @@
+module.exports.config = {
+	name: "uptime",
+  version: "1.0.1",
+	hasPermssion: 0,
+	credits: "ThanhAli", 
+	description: "Ờ thì không dấu lệnh",
+	commandCategory: "𝐓𝐢𝐞𝐧 𝐢𝐜𝐡",
+	usages: "",
+    cooldowns: 5, 
+  dependencies: {
+		"pidusage": ""
+	}
+};
+const fs = require('fs');
+const request = require('request');
+const axios = require('axios');
+function byte2mb(bytes) {
+	const units = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+	let l = 0, n = parseInt(bytes, 10) || 0;
+	while (n >= 1024 && ++l) n = n / 1024;
+	return `${n.toFixed(n < 10 && l > 0 ? 1 : 0)} ${units[l]}`;
+}
+module.exports.handleEvent = function({ api, event, Threads, client, __GLOBAL }) {
+	var { threadID, messageID } = event;
+	if (event.body.indexOf("upt")==0 || (event.body.indexOf("Doremon")==0)) {
+     axios.get('https://api.viethungprovjp.repl.co/images/nhacmp3?apikey=VietHungVjp_2998998083').then(res => { 
+    let ext = res.data.url.substring(res.data.url.lastIndexOf(".") + 1);
+
+const time = process.uptime(),
+		hours = Math.floor(time / (60 * 60)),
+		minutes = Math.floor((time % (60 * 60)) / 60),
+		seconds = Math.floor(time % 60);
+  var z_1 = (hours < 10) ? '0' + hours : hours;
+    var x_1 = (minutes < 10) ? '0' + minutes : minutes;
+    var y_1 = (seconds < 10) ? '0' + seconds : seconds;
+	const pidusage = global.nodemodule["pidusage"](process.pid);
+	const timeStart = Date.now();
+           const { commands } = global.client;
+       const PREFIX = global.config.PREFIX;
+    const threadSetting = Threads.getData(String(event.threadID)).data || 
+    {};
+    const prefix = threadSetting.hasOwnProperty("PREFIX") ? threadSetting.PREFIX 
+    : global.config.PREFIX;
+       const a = global.data.allUserID.length;
+       const b = global.data.allThreadID.length;
+          let callback = function () {
+       api.sendMessage({body: `──────────────────────────\n▷ 𝐔𝐩𝐭𝐢𝐦𝐞 𝐃𝐎𝐑𝐄𝐌𝐎𝐍𝐁𝐎𝐓 ◁\n──────────────────────────\n▷ ${hours} 𝐆𝐢𝐨̛̀ ${minutes} 𝐏𝐡𝐮́𝐭 ${seconds} 𝐆𝐢𝐚̂𝐲 ◁\n──────────────────────────\n➣ 『 𝐓𝐨𝐧𝐠 𝐍𝐠𝐮𝐨𝐢 𝐃𝐮𝐧𝐠 』: ${a}\n➣ 『 𝐓𝐨𝐧𝐠 𝐍𝐡𝐨𝐦 』: ${b}\n➢ 『 𝐓𝐨𝐧𝐠 𝐒𝐨 𝐋𝐞𝐧𝐡 𝐓𝐫𝐞𝐧 𝐃𝐎𝐑𝐄𝐌𝐎𝐍𝐁𝐎𝐓 』: ${commands.size}\n➣ 『 𝐏𝐫𝐞𝐟𝐢𝐱 𝐁𝐎𝐓 』: ${PREFIX} \n➣ 『 𝐏𝐫𝐞𝐟𝐢𝐱 𝐁𝐎𝐗 』: ${prefix} \nn➣ 『 𝐏𝐢𝐧𝐠 』: ${Date.now() - timeStart}𝐌𝐬\n`, attachment: fs.createReadStream(__dirname + `/cache/gaixinh.mp3`)
+  }, threadID, () => fs.unlinkSync(__dirname + `/cache/gaixinh.mp3`), messageID);
+  }
+request(res.data.url).pipe(fs.createWriteStream(__dirname + `/cache/gaixinh.mp3`)).on("close", callback);
+			})}
+    }
+	module.exports.run = function({ api, event,Threads, client, __GLOBAL }) {
+
+  }

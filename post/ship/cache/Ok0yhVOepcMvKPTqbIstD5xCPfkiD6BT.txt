@@ -1,0 +1,162 @@
+module.exports.config = {
+    name: "calladm",
+    version: "1.0.0",
+    hasPermssion: 0,
+    credits: "DungUwU", //modded from sendnoti
+    description: "Gửi tin nhắn tới các ADMIN ( phản hồi vào ảnh/video cần gửi kèm )",
+    commandCategory: "Box",
+    usages: "< nội dung >",
+    cooldowns: 30,
+    dependencies: {
+        "request": "",
+        "fs": "",
+        "moment-timezone": ""
+    }
+};
+
+module.exports.languages = {
+    "vi": {
+        "sendSuccess": "[ 𝗖𝗔𝗟𝗟𝗔𝗗 ] → Đã gửi tâm thư tới %1 ADMIN",
+        "sendFail": "[ 𝗖𝗔𝗟𝗟𝗔𝗗 ] → Không thể gửi tâm thư tới %1 ADMIN"
+    },
+    "en": {
+        "sendSuccess": "Sent message to %1 admin(s)!",
+        "sendFail": "[!] Can't send message to %1 admin(s)"
+    }
+}
+
+const requiredPath = __dirname + "/cache/";
+module.exports.onLoad = async ({ }) => {
+    const fs = global.nodemodule["fs"];
+    if (!fs.existsSync(requiredPath)) fs.mkdirSync(requiredPath, { recursive: true });
+}
+
+module.exports.handleReply = async ({ api, event, Users, handleReply }) => {
+    const ADMINIDs = global.config.ADMIN;
+    const { senderID, messageID, threadID, body } = event;
+
+    const moment = global.nodemodule["moment-timezone"];
+
+    let senderName = await Users.getNameUser(senderID),
+        gio = moment.tz("Asia/Ho_Chi_Minh").format("DD/MM/YYYY || HH:mm:ss"),
+        msg = {
+            body: `====== 𝗖𝗔𝗟𝗟𝗔𝗗 ======\n\n→ Thời gian: ${gio}\n→ Phản hồi từ thành viên: ${senderName}\n→ URL Profile: https://www.facebook.com/profile.php?id=${senderID}\n→ Tên nhóm: ${global.data.threadInfo.get(threadID)?.threadName || "Tên không tồn tại"}\n→ Phản hồi tin nhắn này để gửi đến thành viên\n━━━━━━━━━━━━\n→ Nội dung: ` + body
+        }
+
+    if (handleReply.from == 'user') {
+        if (!ADMINIDs.includes(senderID)) return
+        msg.body = `====== 𝗖𝗔𝗟𝗟𝗔𝗗 ======\n\n→ Thời gian: ${gio}\n→ Phản hồi từ ADMIN: ${senderName}\n→ URL Profile: https://www.facebook.com/profile.php?id=${senderID}\n→ Phản hồi tin nhắn này để gửi đến Người điều hành\n━━━━━━━━━━━━\n→ Nội dung: ` + body;
+    }
+
+    const callback = () => {
+        api.sendMessage(msg, handleReply.threadID, (err, info) => {
+            if (err) {
+                console.log(err);
+                api.setMessageReaction('❌', messageID, null, true);
+            }
+            else {
+                const handleReplyObject = {
+                    name: this.config.name,
+                    from: 'user',
+                    messageID: info.messageID,
+                    authorMessageID: messageID,
+                    threadID: threadID,
+                    author: senderID
+                }
+
+                if (handleReply.from == 'user') {
+                    handleReplyObject.from = 'admin';
+                }
+                global.client.handleReply.push(handleReplyObject);
+                api.setMessageReaction('✅', messageID, null, true);
+            }
+        }, handleReply.authorMessageID);
+    }
+
+
+    if (event.attachments[0]?.url) {
+        const request = global.nodemodule["request"];
+        const fs = global.nodemodule["fs"];
+
+        let response = await request.get(event.attachments[0].url),
+            pathname = response.uri.pathname,
+            ext = pathname.substring(pathname.lastIndexOf(".") + 1),
+            path = requiredPath + `cadmin_${Date.now()}.${ext}`;
+
+        response
+            .pipe(fs.createWriteStream(path))
+            .on("close", () => {
+                msg.attachment = fs.createReadStream(path);
+                callback();
+            })
+    } else callback();
+}
+
+module.exports.run = async ({ api, event, args, getText, Users }) => {
+    const { senderID, threadID, messageID } = event;
+    const ADMINIDs = global.config.ADMIN.filter(e => e != senderID);
+    const moment = global.nodemodule["moment-timezone"];
+
+    let count = 1,
+        cantSend = [],
+        userName = await Users.getNameUser(senderID),
+        gio = moment.tz("Asia/Ho_Chi_Minh").format("DD/MM/YYYY || HH:mm:ss"),
+        msg = {
+            body: `====== 𝗖𝗔𝗟𝗟𝗔𝗗 ======\n\n→ Thời gian: ${gio}\n→ Thông báo từ thành viên: ${userName}\n→ URL Profile: https://www.facebook.com/profile.php?id=${senderID}\n→ Phản hồi tin nhắn này để gửi đến thành viên\n━━━━━━━━━━━━\n→ Nội dung: ` + args.join(` `),
+        },
+        hasAttach = false;
+
+
+    const fs = global.nodemodule["fs"];
+    let path;
+
+    const callback = () => {
+        let promises = []
+
+        for (const adminID of ADMINIDs) {
+            if (isNaN(parseInt(adminID)) || adminID == event.threadID) ""
+            else {
+                promises.push(new Promise(resolve => setTimeout(() => {
+                    api.sendMessage(msg, adminID, (error, info) => {
+                        if (error) cantSend.push(adminID);
+                        else {
+                            global.client.handleReply.push({
+                                name: this.config.name,
+                                from: 'user',
+                                messageID: info.messageID,
+                                authorMessageID: messageID,
+                                threadID: threadID,
+                                author: senderID
+                            })
+                            count++;
+                        }
+                        resolve();
+                    });
+                }, 500)))
+            }
+        }
+
+        Promise.all(promises).then(() => {
+            if (hasAttach) fs.unlinkSync(path);
+            return api.sendMessage(getText("sendSuccess", count), event.threadID, () => (cantSend.length > 0) ? api.sendMessage(getText("sendFail", cantSend.length), event.threadID, event.messageID) : "", event.messageID);
+        })
+    }
+
+    if (event.type == "message_reply" && event.messageReply.attachments[0]) {
+        const request = global.nodemodule["request"];
+        
+        let response = await request.get(event.messageReply.attachments[0].url),
+            pathname = response.uri.pathname,
+            ext = pathname.substring(pathname.lastIndexOf(".") + 1);
+
+        path = requiredPath + `cadmin_${Date.now()}.${ext}`;
+
+        response
+            .pipe(fs.createWriteStream(path))
+            .on("close", () => {
+                msg.attachment = fs.createReadStream(path);
+                hasAttach = true;
+                callback()
+            })
+    } else callback()
+  }

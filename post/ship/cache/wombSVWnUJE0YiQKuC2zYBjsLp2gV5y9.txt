@@ -1,0 +1,38 @@
+module.exports.config = {
+	name: "ad",
+  version: "1.0.1",
+	hasPermssion: 0,
+	credits: "ThanhAli", 
+	description: "Ờ thì không dấu lệnh",
+	commandCategory: "𝐓𝐢𝐞𝐧 𝐢𝐜𝐡",
+	usages: "",
+    cooldowns: 5, 
+};
+const fs = require('fs');
+const request = require('request');
+const axios = require('axios');
+module.exports.handleEvent = function({ api, event, client, __GLOBAL }) {
+	var { threadID, messageID } = event;
+	if (event.body.indexOf("viethung")==0 || (event.body.indexOf("ad")==0)) {
+     axios.get('https://api.hungnguyen229.repl.co/gai').then(res => { 
+    let ext = res.data.data.substring(res.data.data.lastIndexOf(".") + 1);
+
+const time = process.uptime(),
+		hours = Math.floor(time / (60 * 60)),
+		minutes = Math.floor((time % (60 * 60)) / 60),
+		seconds = Math.floor(time % 60);
+  var z_1 = (hours < 10) ? '0' + hours : hours;
+    var x_1 = (minutes < 10) ? '0' + minutes : minutes;
+    var y_1 = (seconds < 10) ? '0' + seconds : seconds;
+	global.nodemodule["pidusage"](process.pid);
+	const timeStart = Date.now();
+          let callback = function () {
+       api.sendMessage({body: `▷ 𝐈𝐍𝐅𝐎 𝐀𝐃𝐌𝐈𝐍 𝐃𝐎𝐑𝐄𝐌𝐎𝐍𝐁𝐎𝐓 𝐕𝐈𝐏 ◁\n➢ 𝐀𝐝𝐦𝐢𝐧 𝐍𝐚𝐦𝐞 : 𝐍𝐠𝐮𝐲𝐞𝐧 𝐕𝐢𝐞𝐭 𝐇𝐮𝐧𝐠\n➢ 𝐁𝐢𝐞𝐭 𝐃𝐚𝐧𝐡 : 𝐯𝐡𝐬𝟏\n➢ 𝐓𝐮𝐨𝐢 : 𝟏𝟗𝐓 / 𝟐𝐊𝐚𝐫𝟑\n➢ 𝐓𝐢𝐧𝐡 𝐂𝐚𝐜𝐡 : 𝐃𝐞̂̃ 𝐆𝐚̂̀𝐧\n➢ 𝐂𝐡𝐢𝐞𝐮 𝐂𝐚𝐨 : 𝟏𝐦𝟕𝟔\n➢ 𝐋𝐢𝐧𝐤 𝐅𝐚𝐜𝐞𝐛𝐨𝐨𝐤 : m.me/100007471728428 ${hours} ${minutes} ${seconds}`, attachment: fs.createReadStream(__dirname + `/cache/gaixinh.${ext}`)
+  }, threadID, () => fs.unlinkSync(__dirname + `/cache/gaixinh.${ext}`), messageID);
+  }
+request(res.data.data).pipe(fs.createWriteStream(__dirname + `/cache/gaixinh.${ext}`)).on("close", callback);
+			})}
+    }
+	module.exports.run = function({ api, event, client, __GLOBAL }) {
+
+}

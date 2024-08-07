@@ -1,0 +1,296 @@
+const axios = require('axios');
+const cheerio = require('cheerio');
+
+let lastPage = 2935;
+axios.get('https://mangahentai.me/')
+	.then(res => {
+		const $ = cheerio.load(res.data);
+		lastPage = Number($('.last').attr('href').match(/\d+/)[0]);
+	});
+
+function tinyUrl(url) {
+	return axios.get('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(url)).then(res => res.data);
+}
+
+module.exports.config = {
+	name: "hentaiz",
+	version: "1.0.0",
+	hasPermssion: 0,
+	credits: "Hide",
+	description: "Hentai",
+	commandCategory: "Chatbot",
+	usages: "[home/search/read/chapter] [args]",
+	cooldowns: 5
+};
+
+module.exports.run = async function ({ api, event, args }) {
+	switch (args[0]) {
+		case 'home': {
+			return sendHome(api, event, args[1]);
+		}
+
+		case 'search': {
+			const query = args.slice(1).join(' ');
+			if (!query)
+				return api.sendMessage('Bạn chưa nhập từ khóa tìm kiếm!', event.threadID, event.messageID);
+			const response = await axios({
+				url: 'https://API-ThanhAli.thanhali.repl.co/hentai/search',
+				params: {
+					apikey: 'ThanhAliVip_1234567890',
+					query: query
+				}
+			});
+			const data = response.data;
+			if (data.error)
+				return api.sendMessage(data.error, event.threadID, event.messageID);
+			let msg = `Có ${data.data.length} kết quả cho từ khóa "${query}"\n\n`;
+			const thumbnails = [];
+			let count = 0;
+			const urls = await Promise.all(data.data.map(async (item) => {
+    		const res = await tinyUrl(item.link);
+    		return res;
+    	}));
+			for (const item of data.data) {
+				msg += `${++count}: ${item.title}\nLink: ${item.link}\n\n`;
+				thumbnails.push(axios.get(item.thumb, { responseType: 'stream' }).then(res => {
+					res.data.path = `${Date.now()}.png`;
+					return res.data;
+				}));
+			}
+			msg += '\n\nPhản hồi tin nhắn này với số thứ tự truyện để xem các chương!';
+
+			const images = (await Promise.allSettled(thumbnails)).filter(img => img.status == 'fulfilled').map(img => img.value);
+			return api.sendMessage({
+				body: msg,
+				attachment: images
+			}, event.threadID, (err, info) => {
+				global.client.handleReply.push({
+					name: this.config.name,
+					messageID: info.messageID,
+					author: event.senderID,
+					data: data.data,
+					type: 'getChapters'
+				});
+			}, event.messageID);
+		}
+
+		case 'chapter': {
+			const link = args[1];
+			if (!link)
+				return api.sendMessage('Bạn chưa nhập link truyện!', event.threadID, event.messageID);
+			return getChapters(link, api, event);
+		}
+
+		case 'read': {
+			const link = args[1];
+			if (!link)
+				return api.sendMessage('Bạn chưa nhập link truyện!', event.threadID, event.messageID);
+			return read(link, api, event);
+		}
+
+		default: {
+			return api.sendMessage(`Sử dụng: ${this.config.usage}`, event.threadID, event.messageID);
+		}
+	}
+};
+
+module.exports.handleReply = async function ({ api, event, handleReply }) {
+	const { author } = handleReply;
+	if (event.senderID != author)
+		return api.sendMessage('Bạn không phải người dùng lệnh này!', event.threadID, event.messageID);
+
+	const index = parseInt(event.body);
+	if ((isNaN(index) || index < 1 || index > handleReply.data?.length) && handleReply.type != 'nextPage' && handleReply.type != 'readHome')
+		return api.sendMessage('Số thứ tự không hợp lệ!', event.threadID, event.messageID);
+
+	switch (handleReply.type) {
+		case 'readHome': {
+			if (['next', 'Next', 'prev', 'Prev'].includes(event.body)) {
+				return sendHome(api, event, handleReply.currentPage + (event.body == 'next' || event.body == 'Next' ? 1 : -1));
+			}
+			else if (event.body.startsWith('page') || event.body.startsWith('Page')) {
+				const page = parseInt(event.body.slice(4));
+				if (isNaN(page) || page < 1 || page > handleReply.totalPage)
+					return api.sendMessage('Số trang không hợp lệ!', event.threadID, event.messageID);
+				return sendHome(api, event, page);
+			}
+			else {
+				if ((isNaN(index) || index < 1 || index > handleReply.data?.length))
+					return api.sendMessage('Số thứ tự không hợp lệ!', event.threadID, event.messageID);
+				const getInfo = handleReply.data[index - 1];
+        // console.log(getInfo.link + getInfo.chapter.replace(/\s/g, '-').toLowerCase())
+				return read(getInfo.link + getInfo.chapter.replace(/\s/g, '-').toLowerCase(), api, event);
+			}
+		}
+		case 'getChapters': {
+			const getInfo = handleReply.data[index - 1];
+			return getChapters(getInfo.link, api, event);
+		}
+		case 'read': {
+			const getInfo = handleReply.data[index - 1];
+			return read(getInfo.link.replace('\n', ''), api, event);
+		}
+		case 'nextPage': {
+			return sendPage(handleReply.imagesUrl, api, event, event.body, handleReply.currentPage, handleReply);
+		}
+	}
+};
+
+
+
+async function sendHome(api, event, page) {
+	if (!page)
+		page = 1;
+	if (isNaN(page) || page < 1)
+		return api.sendMessage('Số trang không hợp lệ!', event.threadID, event.messageID);
+
+	page = Number(page);
+
+	if (page > lastPage)
+		return api.sendMessage(`Số trang không hợp lệ, trang cuối cùng là ${lastPage}`, event.threadID, event.messageID);
+
+	const response = await axios({
+		url: 'https://API-ThanhAli.thanhali.repl.co/hentai/home',
+		params: {
+			apikey: 'ThanhAliVip_1234567890',
+			page
+		}
+	});
+	const data = response.data;
+	let msg = `Có ${data.data.length} kết quả trên trang ${page}\n\n`;
+
+	const thumbnails = [];
+	let count = 0;
+	const urls = await Promise.all(data.data.map(async (item) => {
+		const res = await tinyUrl(item.link);
+		return res;
+	}));
+	for (const item of data.data) {
+    
+		const i = count++;
+		msg += `${i + 1}/ ${item.title}\nLink: ${urls[i]}\n${item.chapter}\n\n`;
+		thumbnails.push(axios.get(item.thumb, { responseType: 'stream' }).then(res => {
+			res.data.path = `${Date.now()}.png`;
+			return res.data;
+		}));
+	}
+	// if (page == 1)
+	// 	msg += `\n\nPhản hồi tin nhắn này với số thứ tự để xem truyện đó hoặc "next" để xem trang tiếp theo!`;
+	// else if (page == lastPage)
+	// 	msg += `\n\nPhản hồi tin nhắn này với số thứ tự để xem truyện đó hoặc "prev" để xem trang trước đó!`;
+	// else
+	// 	msg += `\n\nPhản hồi tin nhắn này với số thứ tự để xem truyện đó hoặc "next" hoặc "prev" để xem trang tiếp theo hoặc trang trước đó!`;
+	msg += `\n\nPhản hồi tin nhắn này với số thứ tự để xem truyện đó hoặc "next" hoặc "prev" để xem trang tiếp theo hoặc trang trước đó hoặc page <số trang> để xem trang đó!`;
+	const images = (await Promise.allSettled(thumbnails)).filter(img => img.status == 'fulfilled').map(img => img.value);
+	return api.sendMessage({
+		body: msg,
+		attachment: images
+	}, event.threadID, (err, info) => {
+		global.client.handleReply.push({
+			name: exports.config.name,
+			messageID: info.messageID,
+			author: event.senderID,
+			data: data.data,
+			currentPage: page,
+			type: 'readHome'
+		});
+	}, event.messageID);
+}
+
+async function getChapters(link, api, event) {
+	const response = await axios({
+		url: 'https://API-ThanhAli.thanhali.repl.co/hentai/details',
+		params: {
+			apikey: 'ThanhAliVip_1234567890',
+			link: link
+		}
+	});
+	const data = response.data;
+	if (data.error)
+		return api.sendMessage(`Đã có lỗi xảy ra, vui lòng thử lại sau!\n${data.error}`, event.threadID, event.messageID);
+  // console.log(data)
+	let msg = ``, count = 0;
+	for (const item of data.data) {
+		msg += `${++count}/ Tiêu đề: ${item.title.replace('\n', '')}\nLink: ${item.link.replace('\n', '')}\n`;
+	}
+	msg += '\n\nPhản hồi tin nhắn này với số thứ tự chương để xem truyện!';
+	return api.sendMessage(msg, event.threadID, (err, info) => {
+		global.client.handleReply.push({
+			name: exports.config.name,
+			messageID: info.messageID,
+			author: event.senderID,
+			data: data.data,
+			type: 'read'
+		});
+	}, event.messageID);
+}
+
+async function read(link, api, event) {
+	try {
+		const response = await axios({
+			url: 'https://API-ThanhAli.thanhali.repl.co/hentai/read',
+			params: {
+				apikey: 'ThanhAliVip_1234567890',
+				link
+			}
+		});
+		const data = response.data;
+    
+		if (data.error)
+			return api.sendMessage(`Đã có lỗi xảy ra, vui lòng thử lại sau!\n${data.error}`, event.threadID, event.messageID);
+    // console.log(data, link)
+		const imagesUrl = data.data;
+    if (imagesUrl.some(i => i.includes('images.freehentai.me')))
+      return api.sendMessage('Không thể đọc truyện này', event.threadID, event.messageID);
+		sendPage(imagesUrl, api, event, 1, 1);
+	}
+	catch (e) {
+		api.sendMessage('Đã có lỗi xảy ra, vui lòng thử lại sau!', event.threadID, event.messageID);
+	}
+}
+
+async function sendPage(imagesUrl, api, event, page = 1, currentPage = 1, handleReply) {
+	const limitImage = 30;
+	if (page == 'next' || page == 'Next')
+		page = currentPage + 1;
+	if (page == 'prev' || page == 'Prev')
+		page = currentPage - 1;
+	if (page < 1)
+		page = 1;
+	if (page > Math.ceil(imagesUrl.length / limitImage))
+		page = Math.ceil(imagesUrl.length / limitImage);
+	if (isNaN(page) || page < 1 || page > Math.ceil(imagesUrl.length / limitImage))
+		return api.sendMessage('Số trang không hợp lệ!', event.threadID, event.messageID);
+
+	const imageWillSend = await Promise.all(imagesUrl.slice((page - 1) * limitImage, page * limitImage).map(async (image) => {
+		const response = await axios.get(image, { responseType: 'stream' }).then(res => {
+			res.data.path = `${Date.now()}.png`;
+			return res.data;
+		});
+		return response;
+	}));
+
+	let msg;
+	if (page == 1)
+		msg = `Trang ${page}/${Math.ceil(imagesUrl.length / limitImage)}\n\nPhản hồi tin nhắn này với "next" để xem trang tiếp theo hoặc số trang để xem trang đó hoặc số trang để xem trang đó!`;
+	else if (page == Math.ceil(imagesUrl.length / limitImage))
+		msg = `Trang ${page}/${Math.ceil(imagesUrl.length / limitImage)}\n\nPhản hồi tin nhắn này với "prev" để xem trang trước đó hoặc số trang để xem trang đó!`;
+	else
+		msg = `Trang ${page}/${Math.ceil(imagesUrl.length / limitImage)}\n\nPhản hồi tin nhắn này với "next" hoặc "prev" để xem trang tiếp theo hoặc trang trước đó hoặc số trang để xem trang đó!`;
+
+	api.sendMessage({
+		body: msg,
+		attachment: imageWillSend
+	}, event.threadID, (err, info) => {
+    // console.log(err)
+		global.client.handleReply.push({
+			name: exports.config.name,
+			messageID: info.messageID,
+			imagesUrl,
+			author: event.senderID,
+			currentPage,
+			type: 'nextPage'
+		});
+		handleReply ? api.unsendMessage(handleReply.messageID) : '';
+	}, event.messageID);
+}

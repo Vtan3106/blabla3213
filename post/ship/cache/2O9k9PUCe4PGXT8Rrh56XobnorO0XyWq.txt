@@ -1,0 +1,67 @@
+module.exports.config = {
+	name: "diemdanh",
+	version: "1.0.1",
+	hasPermssion: 0,
+	credits: "Kanzu",
+	description: "Điểm danh thành viên",
+	commandCategory: "𝐁𝐎𝐗",
+	usages: "",
+	cooldowns: 5,
+	envConfig: {
+    cooldownTime: 3000000
+    }
+};
+
+module.exports.onLoad = function () {
+	const fs = require("fs-extra");
+
+	if (!fs.existsSync(__dirname + "/cache/dd.json")) {
+		const diemdanh = [];
+		fs.writeFileSync(__dirname + "/cache/dd.json", JSON.stringify(diemdanh));
+	}
+}
+
+module.exports.run = async ({ api, event, args, permssion, Users, global, Currencies }) => {
+	const fs = require("fs-extra");
+	const content = args.slice(1, args.length);
+	const dirFile = __dirname + "/cache/diendanh.json";
+
+	var getList = fs.readFileSync(dirFile);
+	var getData = JSON.parse(getList);
+	switch (args[0]) {
+		case "add": {
+			return api.sendMessage(`Chỉ cần dùng /diemdanh thôi nhá không cần dùng /diemdanh add nữa`, event.threadID, event.messageID);
+		}
+		case "delete":
+		case "del": {
+			if (permssion !== 2) return api.sendMessage("Bạn không đủ quyền hạn để có thể sử dụng delete", event.threadID, event.messageID);
+			if (getData.length == 0) return api.sendMessage(`Chưa có mục nào có thể xóa`, event.threadID, event.messageID);
+			if (content.length == 0) return api.sendMessage(`Bạn cần phải chỉ định mục cần xóa`, event.threadID, event.messageID);
+			if (isNaN(content)) return api.sendMessage(`Bạn cần phải chỉ định mục cần xóa`, event.threadID, event.messageID);
+			getData.splice((parseInt(content) - 1), 1);
+			fs.writeFileSync(dirFile, JSON.stringify(getData));
+			return api.sendMessage(`Đã xóa thành công mục có ID là: ${content}`, event.threadID, event.messageID);
+		}
+		case "list":
+		case "all": {
+			if (getData.length == 0) return api.sendMessage(`Hiện tại chưa có ai điểm danh để hiển thị`, event.threadID, event.messageID);
+			var workList = "";
+			getData.map(item => workList += `\n[❖] - ${item}`);
+			return api.sendMessage(`Sau đây là toàn bộ người có mặt: ${workList}`, event.threadID, event.messageID);
+		}	
+		default :
+			try {
+		 const today = new Date().toLocaleString("vi-vn", {timeZone: "Asia/Ho_Chi_Minh"});
+const nameUser = (await Users.getData(event.senderID)).name || (await Users.getInfo(event.senderID)).name;
+const name = Users.getData(event.senderID).name || (await api.getUserInfo(event.senderID))[event.senderID].name;
+const diemdanh = `[ ` +  today  + ` ] • `+`[ ${name} ] - [ CÓ ]`
+.replace(/\{name}/g, nameUser)
+		getData.push(diemdanh);
+		fs.writeFileSync(dirFile, JSON.stringify(getData));
+		return api.sendMessage(`Điểm danh thành công`, event.threadID,event.messageID);
+	}
+			catch (e) {
+		 		api.sendMessage("Đã xảy ra lỗi khi thực hiện lệnh" + err, event.threadID, event.messageID);
+		}
+	}
+}

@@ -1,0 +1,47 @@
+module.exports.config = {
+	name: "ip",	
+	version: "1.0.0", 
+	hasPermssion: 0,
+	credits: "NTKhang",
+	description: "Xem thông tin ip của bạn hoặc ip khác", 
+	commandCategory: "𝐓𝐢𝐞𝐧 𝐢𝐜𝐡",
+	usages: "",
+	cooldowns: 5, 
+	dependencies: "",
+};
+
+module.exports.run = async function({ api, args, event, __GLOBAL }) {
+  const timeStart = Date.now();
+  
+    const axios = require("axios");
+  if (!args[0]) {api.sendMessage("Vui lòng nhập ip bạn muốn kiểm tra",event.threadID, event.messageID);}
+  else {
+var infoip = (await axios.get(`http://ip-api.com/json/${args.join(' ')}?fields=66846719`)).data;
+       if (infoip.status == 'fail')
+         {api.sendMessage(`Đã xảy ra lỗi: ${infoip.message}`, event.threadID, event.messageID)}
+          else {
+            /////////////////
+          //////////////////
+ api.sendMessage({body:`▷ ${(Date.now()) - timeStart}ms ◁
+『 𝙲𝚑â𝚞 𝙻ụ𝚌 』➢ ${infoip.continent}
+『 𝚀𝚞ố𝚌 𝙶𝚒𝚊 』➢ ${infoip.country}
+『 𝙼ã 𝚀𝙶 』➢ ${infoip.countryCode}
+『 𝙺𝚑𝚞 𝚅ự𝚌 』➢ ${infoip.region}
+『 𝚅ù𝚗𝚐/𝚃𝚒ể𝚞 𝙱𝚊𝚗𝚐 』➢ ${infoip.regionName}
+『 𝚃𝚑à𝚗𝚑 𝙿𝚑ố 』➢ ${infoip.city}
+『 𝚀𝚞ậ𝚗/𝙷𝚞𝚢ệ𝚗 』➢ ${infoip.district}
+『 𝙼ã 𝙱ư𝚞 Đ𝚒ệ𝚗 』➢ ${infoip.zip}
+『 𝚅ĩ Độ 』➢ ${infoip.lat}
+『 𝙺𝚒𝚗𝚑 Độ 』➢ ${infoip.lon}
+『 𝚃𝚒𝚖𝚎𝚣𝚘𝚗𝚎 』➢ ${infoip.timezone}
+『 𝚃ê𝚗 𝚃ổ 𝙲𝚑ứ𝚌 』➢ ${infoip.org}
+『 Đơ𝚗 𝚅ị 𝚃𝚒ề𝚗 𝚃ệ 』➢ ${infoip.currency}
+`,location: {
+				latitude: infoip.lat,
+				longitude: infoip.lon,
+				current: true
+			}}
+,event.threadID, event.masageID);}
+        }
+    
+                  }

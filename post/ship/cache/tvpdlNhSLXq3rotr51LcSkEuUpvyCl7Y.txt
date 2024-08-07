@@ -1,0 +1,70 @@
+module.exports.config = {
+    name: 'antiunsend',
+    version: '10.02',
+    hasPermssion: 0,
+    credits: 'DC-Nam',
+    description: 'Chặn người dùng gỡ tin nhắn',
+    commandCategory: 'Hệ thống',
+    usages: '[]',
+    cooldowns: 3
+};
+const {
+    readFileSync,
+    writeFileSync,
+    mkdirSync,
+    rmdirSync,
+    existsSync,
+    createReadStream
+} = require('fs-extra'),
+download = require('image-downloader'),
+destAnti = __dirname+'/cache/ANTI.json',
+saveEvent=[];
+module.exports.onLoad = function() {
+    if (!existsSync(destAnti)) writeFileSync(destAnti, '{"statusUnsend":{}}');
+};
+module.exports.handleEvent = async function({
+    api, event
+}) {
+    saveEvent.push(event);
+    const out = (a, b, c) => api.sendMessage(a, b?b: event.threadID, c?c: null),
+    dataAnti = JSON.parse(readFileSync(destAnti, 'utf-8'));
+    if (event.type == 'message_unsend' && !!dataAnti.statusUnsend[event.threadID] && !global.config.SUPERADMIN.includes(event.senderID) && !global.config.ADMIN.includes(event.senderID) && event.senderID != api.getCurrentUserID() && !((ix = global.data.threadInfo.get(event.threadID)), ix?ix.adminIDs.some(i => i.id == event.senderID): false)) {
+        const find = saveEvent.find(i => i.messageID == event.messageID);
+        if (!!find) {
+            var msg = `${global.data.userName.get(find.senderID)} vừa thu hồi 1 tin nhắn${(j = find.attachments),
+            j == 0?'': `, ${j.length} tệp đính kèm`} sau\n\n${find.body}`;
+            if (find.attachments.length > 0) {
+                var stream = [],
+                dir = __dirname+'/cache/'+event.messageID;
+                const ext = a=>a.type == 'photo' || a.type == 'sticker'?'png': a.type == 'animated_image'?'gif': a.type == 'video'?'mp4': a.type == 'audio'?'mp3': a.type == 'file'?a.filename: null;
+                mkdirSync(dir);
+                for (const idx of find.attachments) {
+                    if (!!ext(idx)) {
+                        const dest = dir+'/'+Date.now()+'.'+ext(idx);
+                        await download.image({
+                            url: idx.url, dest
+                        })
+                        stream.push(createReadStream(dest))
+                    }
+                };
+                msg = {
+                    body: msg,
+                    attachment: stream
+                };
+            };
+            await out(msg);
+            if (!!existsSync(dir)) rmdirSync(dir, {
+                recursive: true
+            });
+        };
+    }
+};
+module.exports.run = function ( {
+    api, event, args
+}) {
+    const out = (a, b, c, d) => api.sendMessage(a, b?b: event.threadID, c?c: null, d?d: event.messageID),
+    dataAnti = JSON.parse(readFileSync(destAnti, 'utf-8'));
+    dataAnti.statusUnsend[event.threadID] = !!dataAnti.statusUnsend[event.threadID]?false:true;
+    writeFileSync(destAnti, JSON.stringify(dataAnti, 0, 0), 'utf-8');
+    out(`${dataAnti.statusUnsend[event.threadID]?'Kích hoạt': 'Tắt'} thành công chế độ chống gỡ tin nhắn`);
+};

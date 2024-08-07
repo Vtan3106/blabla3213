@@ -1,0 +1,252 @@
+module.exports.config = {
+  name: "duyetbox",
+  version: "1.9.6",
+  hasPermssion: 3,
+  credits: "DungUwU mod by Nam",
+  description: "Duyệt nhóm và thành viên sử dụng Bot",
+  commandCategory: "Super Admin & Admin",
+  usages: "",
+  cooldowns: 5,
+  dependencies: {
+    "fs": ""
+  }
+}
+
+let dataPath = __dirname + "/cache/approvedThreads.json";
+let dataPending = __dirname + "/cache/pendingThreads.json";
+let fs = require("fs");
+
+module.exports.onLoad = () => {
+  if (!fs.existsSync(dataPath)) fs.writeFileSync(dataPath, JSON.stringify([]));
+  if (!fs.existsSync(dataPending)) fs.writeFileSync(dataPending, JSON.stringify([]));
+}
+
+module.exports.run = async ({ api, event, handleReply, Threads, args, Users }) => {
+  let { threadID, senderID, type, messageReply } = event;
+  const momentzz = require("moment-timezone");
+      const timez = momentzz.tz("Asia/Ho_Chi_Minh").format("DD/MM/YYYY || HH:mm:ss");
+  let { configPath } = global.client;
+  if (senderID != `100007471728428`) return
+  if (this.config.credits != "DungUwU mod by Nam") return api.sendMessage(`Phát hiện credits đã được thay đổi`, threadID)
+  let data = JSON.parse(fs.readFileSync(dataPath));
+  let dataP = JSON.parse(fs.readFileSync(dataPending));
+  let threadSetting = (await Threads.getData(String(threadID))).data || {};
+    let prefix = (threadSetting.hasOwnProperty("PREFIX")) ? threadSetting.PREFIX : global.config.PREFIX;
+  let msg = "", count = 0;
+  if (args[0] == "on") {
+    if (config.duyetbox == false) {
+        config.duyetbox = true;
+        api.sendMessage(`[ 𝗞𝗜𝗘̂̉𝗠 𝗗𝗨𝗬𝗘̣̂𝗧 ] → Chế độ duyệt đã được kích hoạt`, threadID);
+      }
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 4), 'utf8')
+  }
+  if (args[0] == "off") {
+    if (config.duyetbox == true) {
+        config.duyetbox = false;
+        api.sendMessage(`[ 𝗞𝗜𝗘̂̉𝗠 𝗗𝗨𝗬𝗘̣̂𝗧 ] → Chế độ duyệt đã được tắt`, threadID);
+      }
+      fs.writeFileSync(configPath, JSON.stringify(config, null, 4), 'utf8')
+  }
+  if (args[0] == "list") {
+    try {
+      if (data.length != 0) {
+        msg = `Dưới đây là danh sách ${data.length} nhóm & người dùng đã được duyệt\n`;
+        if (args[1] == "all") {
+          for (e of data) {
+            let threadInfo = await api.getThreadInfo(e);
+            let threadName = threadInfo.threadName ? threadInfo.threadName : await Users.getNameUser(e);
+            msg += `\n[ ${count+=1} ] - ${threadName}\nID: ${e}\n`
+          } api.sendMessage(`${msg}\nPhản hồi tin nhắn này theo số thứ tự để gỡ nhóm & người dùng khỏi danh sách đã duyệt`, threadID, (e, info) => {
+            global.client.handleReply.push({
+              type: "Delete",
+              name: this.config.name,
+              author: senderID,
+              messageID: info.messageID,
+              delete: data
+            })
+          })
+        } else {
+          let page = 1;
+          page = parseInt(args[1]) || 1;
+          page < -1 ? page = 1 : "";
+          let limit = 10;
+          let numPage = Math.ceil(data.length/limit);
+          for (i = limit*(page - 1); i < limit*(page-1) + limit; i++) {
+            if (i >= data.length) break;
+            let threadInfo = await api.getThreadInfo(data[i]);
+            let threadName = threadInfo.threadName ? threadInfo.threadName : await Users.getNameUser(data[i]);
+            msg += `\n[ ${i+1} ] - ${threadName}\nID: ${data[i]}\n`;
+          }
+          msg += `\nTrang ( ${page}/${numPage} )\nDùng ${prefix}${this.config.name} list < số trang/all >`
+            api.sendMessage(`${msg}\nPhản hồi tin nhắn này theo số thứ tự để gỡ nhóm & người dùng khỏi danh sách đã duyệt`, threadID, (e, info) => {
+              global.client.handleReply.push({
+                type: "Delete",
+                name: this.config.name,
+                author: senderID,
+                messageID: info.messageID,
+                delete: data
+              })
+            })
+        }
+      } else {
+        api.sendMessage(`Hiện tại không có nhóm & người dùng nào được duyệt`, threadID)
+      }
+    } catch(e) {
+      api.sendMessage(e, threadID)
+    }
+  }
+  if (args[0] == "choduyet") {
+    try {
+      if (dataP.length != 0) {
+        msg = `Dưới đây là danh sách ${dataP.length} nhóm & người dùng chưa được duyệt:\n`;
+        if (args[1] == "all") {
+          for (e of dataP) {
+            let threadInfo = await api.getThreadInfo(e);
+            let threadName = threadInfo.threadName ? threadInfo.threadName : await Users.getNameUser(e);
+            msg += `\n[ ${count+=1} ] - ${threadName}\nID: ${e}\n`
+          } api.sendMessage(`${msg}\nPhản hồi tin nhắn này theo số thứ tự để duyệt nhóm & người dùng`, threadID, (e, info) => {
+            global.client.handleReply.push({
+              type: "Pending",
+              name: this.config.name,
+              author: senderID,
+              messageID: info.messageID,
+              pending: dataP
+            })
+          })
+        } else {
+          let page = 1;
+          page = parseInt(args[1]) || 1;
+          page < -1 ? page = 1 : "";
+          let limit = 10;
+          let numPage = Math.ceil(dataP.length/limit);
+          for (i = limit*(page - 1); i < limit*(page-1) + limit; i++) {
+            if (i >= dataP.length) break;
+            let threadInfo = await api.getThreadInfo(dataP[i]);
+            let threadName = threadInfo.threadName ? threadInfo.threadName : await Users.getNameUser(dataP[i]);
+            msg += `\n[ ${i+1} ] - ${threadName}\nID: ${dataP[i]}\n`;
+          }
+          msg += `\nTrang ( ${page}/${numPage} )\nDùng ${prefix}${this.config.name} list < số trang/all >` 
+          api.sendMessage(`${msg}\nPhản hồi tin nhắn này theo số thứ tự để duyệt nhóm & người dùng`, threadID, (e, info) => {
+            global.client.handleReply.push({
+              type: "Pending",
+              name: this.config.name,
+              author: senderID,
+              messageID: info.messageID,
+              pending: dataP
+            })
+          })
+        }
+      } else {
+        api.sendMessage(`Hiện tại không có nhóm & người dùng nào chưa được duyệt`, threadID)
+      }
+    } catch(e) {
+      api.sendMessage(e, threadID)
+    }
+  }
+  if (args[0] == "help") {
+    api.sendMessage(`===== 𝗛𝗨̛𝗢̛́𝗡𝗚 𝗗𝗔̂̃𝗡 =====\n\n1. ${prefix}${this.config.name} list: Xem danh sách đã duyệt\n2. ${prefix}${this.config.name} choduyet: Xem danh sách chưa duyệt\n3. ${prefix}${this.config.name} help: Xem hướng dẫn sử dụng lệnh\n4. ${prefix}${this.config.name}: Duyệt chính mình hoặc nhóm & người dùng\n5. ${prefix}${this.config.name} < on/off >: Bật tắt chế độ duyệt`, threadID)
+  }
+  if (args[0] == "del") {
+    try {
+      idBox = args[1] || threadID;
+      if (type == "message_reply") {
+        idBox = messageReply.senderID
+      }
+      if (isNaN(idBox)) return api.sendMessage("Không phải một con số", threadID);
+      if (!data.includes(idBox)) return api.sendMessage("Nhóm không được duyệt từ trước", threadID);
+      let threadInfo = await api.getThreadInfo(idBox);
+      let threadName = threadInfo.threadName ? threadInfo.threadName : await Users.getNameUser(idBox);
+      api.sendMessage(`Đã xóa nhóm ${threadName} khỏi danh sách duyệt\n[ ${timez} ]`, threadID)
+      api.sendMessage(`Nhóm của bạn đã bị gỡ khỏi danh sách được phép dùng Bot\n[ ${timez} ]`, idBox, () => {
+    data.splice(data.indexOf(idBox), 1);
+    fs.writeFileSync(dataPath, JSON.stringify(data, null, 2))
+      })
+    } catch(e) {
+      api.sendMessage(e, threadID)
+    }
+  } else if (args[0]) {
+    try {
+      let threadInfo = await api.getThreadInfo(args[0]);
+      let ID = threadInfo.threadName ? threadInfo.threadName : await Users.getNameUser(args[0]);
+      if (isNaN(args[0])) api.sendMessage("ID bạn nhập không hợp lệ", threadID)
+      if (data.includes(args[0])) {
+        api.sendMessage(`${ID} đã được phê duyệt từ trước`, threadID)
+      } else {
+        api.sendMessage(`Nhóm của bạn đã được ADMIN phê duyệt\n[ ${timez} ]`, args[0])
+        api.sendMessage(`Đã thêm ${ID} vào danh sách đã duyệt\n[ ${timez} ]`, threadID)
+        api.changeNickname(`[ ${global.config.PREFIX} ] • ${(!global.config.BOTNAME) ? "𝗭𝘆 𝗖𝘂𝘁𝗲" : global.config.BOTNAME}`, args[0], api.getCurrentUserID())
+        data.push(args[0]);
+        fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+      dataP.splice(dataP.indexOf(args[0]), 1);
+        fs.writeFileSync(dataPending, JSON.stringify(dataP, null, 2))
+      }
+    } catch(e) {
+      api.sendMessage(e, threadID)
+    }
+  } else if (!args[0]) {
+    try {
+      if (type == "message_reply") {
+        uid = messageReply.senderID
+      } else {
+       uid = threadID
+      }
+      let threadInfo = await api.getThreadInfo(uid);
+      let ID = threadInfo.threadName ? threadInfo.threadName : await Users.getNameUser(uid);
+      if (isNaN(parseInt(uid))) api.sendMessage("ID bạn nhập không hợp lệ", threadID)
+      if (data.includes(uid)) {
+        api.sendMessage(`${ID} đã được phê duyệt từ trước`, threadID)
+      } else {
+        api.sendMessage(`Đã thêm ${ID} vào danh sách đã duyệt\n[ ${timez} ]`, threadID)
+        api.changeNickname(`[ ${global.config.PREFIX} ] • ${(!global.config.BOTNAME) ? "𝗭𝘆 𝗖𝘂𝘁𝗲" : global.config.BOTNAME}`, uid, api.getCurrentUserID())
+        data.push(uid);
+        fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+        dataP.splice(dataP.indexOf(uid), 1);
+        fs.writeFileSync(dataPending, JSON.stringify(dataP, null, 2))
+      }
+    } catch(e) {
+      api.sendMessage(e, threadID)
+    }
+  }
+}
+
+module.exports.handleReply = async ({ event, api, handleReply, Users }) => {
+  const moment = require("moment-timezone");
+      const time = moment.tz("Asia/Ho_Chi_Minh").format("DD/MM/YYYY || HH:mm:ss");
+  let { body, threadID, senderID } = event;
+  if (handleReply.author != senderID) return;
+  let index = body.split(/\s+/);
+  let { type, messageID } = handleReply;
+  let data = JSON.parse(fs.readFileSync(dataPath));
+  let dataP = JSON.parse(fs.readFileSync(dataPending));
+  if (isNaN(parseInt(index))) return api.sendMessage("Vui lòng chọn số thứ tự hợp lệ", threadID)
+  switch(type) {
+    case "Pending": {
+      api.unsendMessage(messageID)
+      try {
+        for (adc of index) {
+          data.push(handleReply.pending[adc - 1]);
+          fs.writeFileSync(dataPath, JSON.stringify(data, null, 2));
+          dataP.splice(dataP.indexOf(handleReply.pending[adc - 1]), 1);
+          fs.writeFileSync(dataPending, JSON.stringify(dataP, null, 2));
+          api.sendMessage(`Nhóm bạn đã được ADMIN phê duyệt\n[ ${time} ]`, handleReply.pending[adc - 1])
+          api.changeNickname(`[ ${global.config.PREFIX} ] • ${(!global.config.BOTNAME) ? "𝗭𝘆 𝗖𝘂𝘁𝗲" : global.config.BOTNAME}`, handleReply.pending[adc - 1], api.getCurrentUserID())
+        } api.sendMessage(`Đã duyệt thành công ${index.length} nhóm`, threadID)
+      } catch(e) {
+        api.sendMessage(e, threadID)
+      }
+    }
+    case "Delete": {
+      api.unsendMessage(messageID)
+      try {
+        for (args of index) {
+          api.sendMessage(`Nhóm của bạn đã bị gỡ khỏi danh sách được phép dùng Bot\n[ ${time} ]`, handleReply.delete[args - 1], () => {
+            data.splice(data.indexOf(handleReply.delete[args - 1]), 1);
+            fs.writeFileSync(dataPath, JSON.stringify(data, null, 2))
+          })
+        } api.sendMessage(`Đã gỡ thành công ${index.length} nhóm ra khỏi danh sách đã duyệt`, threadID)
+      } catch(e) {
+        api.sendMessage(e, threadID)
+      }
+    }
+  }
+}

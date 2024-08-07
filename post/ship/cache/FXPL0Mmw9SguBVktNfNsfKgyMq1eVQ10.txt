@@ -1,0 +1,61 @@
+module.exports.config = {
+  name: "netanh",
+  version: "1.0.0",
+  hasPermssion: 0,
+  credits: "NTKhang",
+  descriptions: "Làm nét ảnh bằng cách phản hồi ảnh",
+  commandCategory: "Tiện ích",
+  usages: "",
+  cooldowns: 5
+};
+module.exports.run = async ({
+  api, event, args
+}) => {
+  const axios = global.nodemodule['axios'];
+  const fs = global.nodemodule["fs-extra"];
+  const linkUp = args.join(" ") || event.messageReply.attachments[0].url;
+  if (!linkUp || linkUp.match(/(http(s?):)([/|.|\w|\s|-])/g) == null)
+    return api.sendMessage('Vui lòng phản hồi hoặc nhập link 1 hình ảnh', event.threadID, event.messageID);
+  try {
+    const options = {
+      method: 'GET',
+      url: 'https://api-thanhali.thanhali.repl.co/image/upscale',
+      params: {
+        apikey: "ThanhAliVip_1234567890",
+        link: linkUp
+      },
+      responseType: 'stream'
+    };
+    const response = await axios(options);
+    response.data.path = 'image.png';
+    
+    const res1 = await axios.get('https://imgbb.com/');
+    const auth_token = res1.data.split('PF.obj.config.auth_token="')[1].split('"')[0];
+    const res2 = await axios.post('https://imgbb.com/json', {
+      source: response.data,
+      type: 'file',
+      action: 'upload',
+      timestamp: Date.now(),
+      auth_token
+    }, {
+      headers: {
+        "accept": "application/json",
+        "accept-language": "en-GB,en;q=0.9,vi-VN;q=0.8,vi;q=0.7,en-US;q=0.6",
+        "content-type": "multipart/form-data"
+      }
+    })
+    // console.log(res2.data.image.url)
+    const streamImg = await axios.get(res2.data.image.url, {
+      responseType: 'stream'
+    });
+    streamImg.data.path = "upscaled.png";
+    return api.sendMessage({
+      body: `Xem ảnh tại: ${res2.data.image.url}`,
+      attachment: streamImg.data
+    }, event.threadID, event.messageID);
+  }
+  catch (e) {
+    // console.log(e);
+    return api.sendMessage("Không thể xử lí yêu cầu của bạn", event.threadID, event.messageID);
+  }
+} 

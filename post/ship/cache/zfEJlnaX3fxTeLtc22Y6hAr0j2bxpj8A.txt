@@ -1,0 +1,219 @@
+module.exports.config = {
+  name: "chatandanh",
+  version: "1.0.0",
+  hasPermssion: 0,
+  credits: "mindat",
+  description: "Chat ẩn danh qua Bot",
+  commandCategory: "Tiện ích",
+  usages: "[random/id/check]",
+  cooldowns: 0
+}
+
+const fs = require('fs-extra');
+const axios = require('axios');
+const rcp = require('path').resolve(__dirname, 'cache', 'rcp.json');
+module.exports.onLoad = function () {
+  if (!fs.existsSync(rcp)) fs.writeFileSync(rcp, '[]');
+}
+
+module.exports.run = async function ({ api, event, Users, args }) {
+  const { messageID, threadID, isGroup } = event;
+  const o = (m, c = () => { }, id = threadID) => api.sendMessage(m, id, c, messageID);
+  const s = api.sendMessage;
+  if (isGroup) return o("Bạn chỉ được sử dụng lệnh này khi tin nhắn riêng với Bot nhé");
+  var rc = {};
+  rc.root = threadID;
+  rc.head = null;
+  rc.isWaiting = false;
+  rc.isStarted = false;
+  rc.isError = false;
+  rc.rootIsIncognito = true;
+  rc.headIsIncognito = true;
+  rc.isRandom = false;
+if (!args[0]) return api.sendMessage(`Cách sử dụng:\n${global.config.PREFIX}chatandanh random: tìm kiếm ngẫu nhiên\n${global.config.PREFIX}chatandanh end: kết thúc cuộc trò chuyện\n${global.config.PREFIX}chatandanh ( ID bạn muốn trò chuyện bằng cách phản hồi tin nhắn người đó hoặc sử dụng link FB họ sau đó dùng lệnh để lấy UID...ví dụ !chatandanh 100020908143321 ): tìm kiếm theo yêu cầu\n${global.config.PREFIX}chatandanh info: info của cuộc trò chuyện`, event.threadID);
+  switch (args[0]) {
+    case 'random':
+      var data = require(rcp);
+      if (data.some(e => (e.root == threadID || e.head == threadID))) return o("Bạn hiên ngồi chờ kết nối với một người khác.Không thể thực hiện yêu cầu này");
+      rc.isRandom = true;
+      o("Bạn vừa chọn ngẫu nhiên\nBạn có muốn ẩn thân\n\nTrả lời tin nhắn này số 1 nếu muốn ẩn thân hoặc chọn số 0 nếu muốn công khai thân phận với đối phương 💌", (_, i) => global.client.handleReply.push({ type: 'incognitoRootRandomHead', name: this.config.name, author: threadID, messageID: i.messageID, data: rc }));
+      break;
+    case 'reject':
+      var data = require(rcp);
+      if (data.some(e => e.head == threadID && e.isWaiting)) {
+        let rj = data.findIndex(e => e.head == threadID);
+        o("Bạn vừa từ chối kết nối liên hệ😿💔", () => {
+          s("Người liên hệ đã từ chối kết nối với bạn😿💔", data[rj].root);
+          data.splice(rj, 1);
+          fs.writeFileSync(rcp, JSON.stringify(data, null, 4));
+        });
+      } else o("Không có liên hệ nào chờ kết nối của bạn😿💔");
+      break;
+    case 'accept':
+      var data = require(rcp);
+      if (data.some(e => e.head == threadID && e.isWaiting)) {
+        let ac = data.find(e => e.head == threadID && e.isWaiting);
+        o("Bạn vừa chấp nhận kết nối với đối phương 💌\nBạn có muốn ẩn thân\n\nTrả lời tin nhắn này số 1 nếu muốn ẩn thân hoặc chọn số 0 nếu muốn công khai thân phận với đối phương 💌", (_, i) => global.client.handleReply.push({ type: 'incognitoHead', name: this.config.name, author: threadID, messageID: i.messageID, data: ac }))
+      }
+      break;
+    case 'end':
+    case 'leave':
+    case '-l':
+      var data = require(rcp);
+      if (data.some(e => (e.root == threadID || e.head == threadID))) {
+        var end = data.findIndex(e => (e.root == threadID || e.head == threadID));
+        var endData = data[end];
+        var enderId = endData.root == threadID ? endData.root : endData.head;
+        var remain = endData.root == threadID ? endData.head : endData.root;
+        var enderIncognito = endData.root == threadID ? endData.rootIsIncognito : endData.headIsIncognito;
+        o("Bạn vừa kết thúc cuộc trò chuyện", async (er) => {
+          var enderName = await Users.getNameUser(enderId);
+          var msg = enderIncognito == false ? `${enderName} vừa rời khỏi cuộc trò chuyện` : "Đối phương đã rời khỏi cuộc trò chuyện";
+          return s(msg, remain);
+        });
+        data.splice(end, 1);
+        fs.writeFileSync(rcp, JSON.stringify(data, null, 4));
+      } else o("Không có cuộc trò chuyện nào đang diễn ra");
+      break;
+    case "data":
+      var data = require(rcp);
+      console.log(JSON.stringify(data));
+      break;
+    case "check":
+    case "info":
+    case "-i":
+      var data = require(rcp);
+      if (data.some(e => (e.root == threadID || e.head == threadID))) {
+        var rcData = data.find(e => (e.root == threadID || e.head == threadID));
+        var incognito = rcData.root == threadID ? rcData.headIsIncognito : rcData.rootIsIncognito;
+        var msg = 'Thông tin:';
+        msg += '\n\n- ID của bạn: ' + threadID;
+        if (incognito == true) msg += '\n- Đối phương: ID đã bị ẩn';
+        else {
+          var name = await Users.getNameUser((rcData.head == threadID ? rcData.root : rcData.head));
+          msg += '\n- Đối phương: ' + (rcData.head == threadID ? rcData.root : rcData.head) + ' - ' + name;
+        }
+        msg += '\n- Trạng thái: ' + (rcData.isWaiting ? 'chờ được chấp nhận' : rcData.isStarted ? 'Đang chat...' : '???');
+        return o(msg);
+      } else o("Không có cuộc trò truyện nào đang diễn ra");
+    default:
+      var data = require(rcp);
+      if (data.some(e => (e.root == threadID || e.head == threadID))) return o("Bạn hiện có 1 kết nối khác .Không thể thực hiện yêu cầu này");
+      if (!args[0] || isNaN(args[0])) return o("Vui lòng nhập UID bạn muốn chat💌");
+      rc.head = args[0];
+      if (data.some(e => (e.root == rc.head || e.head == rc.head))) return o('Người bạn muốn kết nối hiện đang trong kết nối khác vui lòng thử lại sau')
+      o(`Bạn vừa yêu cầu ${args[0]} kết nối cuộc trò chuyện 💌\nBạn có muốn ẩn thân\n\nTrả lời tin nhắn này số 1 nếu muốn ẩn thân hoặc chọn số 0 nếu muốn công khai thân phận với đối phương 💌`, (_, i) => global.client.handleReply.push({ type: 'incognitoRoot', name: this.config.name, author: threadID, messageID: i.messageID, data: rc }));
+      break;
+  }
+}
+
+module.exports.handleReply = async function ({ handleReply, api, event, Users }) {
+  const { threadID, messageID, body } = event;
+  const o = (m, c = () => { }, id = threadID) => api.sendMessage(m, id, c, messageID);
+  const s = api.sendMessage;
+  switch (handleReply.type) {
+    case 'incognitoRootRandomHead':
+      var rcData = require(rcp);
+      var rc = handleReply.data;
+      var headID;
+      if (body == 0) {
+        rc.rootIsIncognito = true;
+        o("Bạn đã chọn giấu thân phận 👥");
+      } else if (body == 1) {
+        rc.rootIsIncognito = false;
+        o("Bạn đã chọn hiện thân phận 💑");
+      }
+      const userID = global.data.allUserID;
+      headID = userID[Math.floor(Math.random() * userID.length)];
+      var rootName = await Users.getNameUser(rc.root);
+      var fbUrl = 'https://facebook.com/' + rc.root;
+      s((rc.rootIsIncognito ? "Có 1 người liên hệ ẩn danh muốn chat với bạn" : `Một người tên ${rootName} - ${fbUrl} muốn trò chuyện với bạn`) + `\nNếu muốn từ chối hãy sử dụng lệnh: ${global.config.PREFIX}chatandanh reject\nNếu muốn chấp nhận hãy nhập lệnh: ${global.config.PREFIX}chatandanh accept`, headID, (er, i) => {
+        if (er) o("Đã có lỗi xảy ra khi cố kết nối với người liên hệ\nVui lòng thử lại sau");
+        else {
+          o("Tìm kiếm thành công\nHãy chờ kết nối từ phía bên kia⏳");
+          rc.isWaiting = true;
+          rc.head = headID;
+          rcData.push(rc);
+          fs.writeFileSync(rcp, JSON.stringify(rcData, null, 4));
+        }
+      });
+      break;
+
+    case 'incognitoHead':
+      var rcData = require(rcp);
+      var ac = handleReply.data;
+      if (body == 1) {
+        ac.headIsIncognito = true;
+        o(`Bạn đã chọn giấu ẩn thân\nNếu muốn kết thúc cuộc trò chuyện hãy sử dụng: ${global.config.PREFIX}love end`);
+      } else if (body == 0) {
+        ac.headIsIncognito = false;
+        o(`Bạn chọn hiện thân phận\nNếu muốn kết thúc cuộc trò chuyện hãy sử dụng: ${global.config.PREFIX}chatandanh end`);
+      }
+      ac.isWaiting = false;
+      ac.isStarted = true;
+      var nameHead = await Users.getNameUser(ac.head);
+      var fbUrl = 'fb.com/' + ac.head;
+      var msg = (ac.headIsIncognito ? "Người liên hệ ẩn danh👥" : `${nameHead} - ${fbUrl}`) + ` vừa chấp nhận kết nối với bạn\nNếu muốn kết thúc cuộc trò chuyện hãy sử dụng: ${global.config.PREFIX}chatandanh end`;
+      await s(msg, ac.root);
+      var prevData = rcData.find(e => e.root = ac.root);
+      Object.keys(prevData).map((v) => prevData[v] = ac[v]);
+      fs.writeFileSync(rcp, JSON.stringify(rcData, null, 4));
+      break;
+
+    case 'incognitoRoot':
+      var rcData = require(rcp);
+      var rc = handleReply.data;
+      if (body == 1) {
+        rc.rootIsIncognito = true;
+        o("Bạn đã chọn giấu ẩn thân👥");
+      } else if (body == 0) {
+        rc.rootIsIncognito = false;
+        o("Bạn đã hiện giấu ẩn thân 💑");
+      }
+      var rootName = await Users.getNameUser(rc.root);
+      var fbUrl = 'fb.com/' + rc.root;
+      s((rc.rootIsIncognito ? "Có 1 người liên hệ ẩn danh muốn trò chuyện với bạn" : `Một người tên ${rootName} - ${fbUrl} muốn trò chuyện với bạn.`) + `\nNếu muốn từ chối hãy sử dụng lệnh: ${global.config.PREFIX}chatandanh reject\nNếu muốn chấp nhận hãy nhập lệnh: ${global.config.PREFIX}chatandanh accept`, rc.head, (er, i) => {
+        if (er) o("Đã có lỗi xảy ra khi cố kết nối với người liên hệ\nVui lòng thử lại sau");
+        else {
+          o("Yêu cầu thành công, chờ kết nối từ bên kia...⏳");
+          rc.isWaiting = true;
+          rcData.push(rc);
+          fs.writeFileSync(rcp, JSON.stringify(rcData));
+        }
+      });
+      break;
+  }
+}
+
+module.exports.handleEvent = async function ({ event, api, Users }) {
+  var { threadID, isGroup, body } = event;
+  var tiny = async function (url) {
+    const { data } = await axios.get('https://tinyurl.com/api-create.php?url=' + encodeURIComponent(url));
+    return data;
+  }
+  if (isGroup == false) {
+    if (body.startsWith(global.config.PREFIX)) return;
+    const rcData = require(rcp);
+    const o = (msg, id) => api.sendMessage(msg, id || threadID);
+    if (rcData.some(e => (e.head == threadID || e.root == threadID))) {
+      var data = rcData.find(e => (e.head == threadID || e.root == threadID));
+      if (data.isStarted == true) {
+        var sender = data.root == threadID ? data.root : data.head;
+        var receiver = data.root == threadID ? data.head : data.root;
+        var senderIncognito = data.root == threadID ? data.rootIsIncognito : data.headIsIncognito;
+        if (senderIncognito == false) {
+          var name = await Users.getNameUser(sender);
+          body = `${name} gửi tin nhắn tới bạn 💌:\n` + body;
+        } else body = "Người bí ẩn đã nhắn tin với bạn 💌:\n" + body;
+        if (event.attachments.length != 0) {
+          body += '\nTệp gửi kèm 🗂:'
+          for (var e of event.attachments) {
+            var u = await tiny(e.url);
+            body += '\n- ' + u;
+          }
+        }
+        return o(body, receiver);
+      }
+    }
+  }
+}

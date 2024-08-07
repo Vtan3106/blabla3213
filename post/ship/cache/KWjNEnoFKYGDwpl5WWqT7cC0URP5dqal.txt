@@ -1,0 +1,78 @@
+module.exports.config = {
+  name: "lichsu",
+  version: "1.0.0",
+  hasPermssion: 2,
+  credits: "NTKhang",
+  description: "Xem lịch sử sử dụng Bot",
+  commandCategory: "Hệ thống",
+  usages: "",
+  cooldowns: 5,
+}
+
+module.exports.handleReaction = async function({ handleReaction, api, event, global }) {
+
+ api.unsendMessage(handleReaction.messageID);
+}
+
+module.exports.run = async function({ api, event, client, Threads, args }) {
+  
+  
+  /*let allbox = (await api.getThreadList( 100, null, ["INBOX"])).filter(group => group.isSubscribed && group.isGroup);
+  
+  var msg = "";
+  var dontuse = "";
+  var hist = [];
+  
+for(let box of allbox) {
+    try{
+  let data = (await Threads.getData(box.threadID)).data || {};
+  
+  if(!data.lastUse) {dontuse += box.name+"\nChưa sử dụng bot\n\n"}
+     else{
+    var datenow = data.lastUse.datenow;
+    var time = data.lastUse.time;
+    
+    hist.push({
+      threadID: box.threadID,
+      time: time,
+      datenow: datenow
+    })
+          }
+  } catch(e) {}
+  };
+  
+var history2 = hist.sort((a, b) => b.datenow - a.datenow);
+
+  for(let lichsu of history2) {
+    var name = (await Threads.getData(lichsu.threadID)).name;
+    
+    msg += name+'\n'+lichsu.threadID+"\n"+lichsu.time+"\n\n";
+  }*/
+  try{
+  var txt = '', count = 0;
+  global.data.threadData.forEach((v,k) => txt += `${++count}. ${(x=global.data.threadInfo.get(k)),x?x.threadName:((z=global.data.userName.get(k)),z?z:null)}\n - ${v.lastUse ? v.lastUse.time: 'Chưa sử dụng'}\n\n`)
+  api.sendMessage("Lịch sử lần cuối sử dụng Bot của các nhóm:\n\n" +txt, event.threadID, (err, info) => client.handleReaction.push({
+    name: this.config.name,
+    messageID: info.messageID,
+    author: event.senderID
+  }), event.messageID)
+  }catch(err){
+      api.sendMessage(`${err}`, event.threadID)
+  }
+}
+
+
+
+module.exports.handleEvent = async function({ api, event, Threads }) {
+  var prefix = global.config.PREFIX;
+  if(event.body?.startsWith(prefix)) {
+  const moment = require("moment-timezone");
+  var time = moment.tz("Asia/Ho_Chi_Minh").format("HH:mm:ss DD/MM/YYYY");
+  let {data} = await Threads.getData(event.threadID);
+   if(!data) data = {}
+    data["lastUse"] = {datenow: Date.now(), time: time};
+    
+    await Threads.setData(event.threadID , {data})
+    global.data.threadData.set(event.threadID, data);
+  }
+}

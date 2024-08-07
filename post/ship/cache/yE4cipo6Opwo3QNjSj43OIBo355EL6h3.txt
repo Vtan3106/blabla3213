@@ -1,0 +1,107 @@
+const axios = require("axios");
+const regExMatchPinterest = /(https:\/\/(www.)?(pinterest.com|pin.it)[^ \n]*)/g;
+
+module.exports.config = {
+	name: "pinterest",
+	version: "2.0.0",
+	hasPermssion: 0,
+	credits: "NTKhang",
+	description: "Tải video hoặc tìm kiếm ảnh trên pinterest",
+	commandCategory: "Tiện ích",
+	usages: "down {url}\n-pinterest search {keyword}",
+	cooldowns: 0
+};
+
+module.exports.run = async function ({ api, event, args }) {
+	const p = global.config.PREFIX;
+	const t = module.exports.config.name;
+	const targetBody = event.messageReply ? event.messageReply.body : event.body;
+
+	if (args[0] == "down") {
+		const targets = targetBody.match(regExMatchPinterest);
+		if (!targets.length)
+			return api.sendMessage("Bạn phải nhập link pinterest", event.threadID, event.messageID);
+
+		const getAll = await Promise.all(targets.map(async (url) => {
+			const urlDownloadImage = await getUrlDownloadImage(url);
+			const { data: result } = await axios.get(urlDownloadImage, {
+				responseType: "stream"
+			});
+			const pathDefault = result.path;
+			result.path = pathDefault ? pathDefault : global.utils.randomString(5) + ".png";
+			return result;
+		}));
+
+		return api.sendMessage({
+			attachment: getAll
+		}, event.threadID, event.messageID);
+	}
+	else if (args[0] == "search") {
+		try {
+			let keyword = event.messageReply ? event.messageReply.body : args.slice(1).join(" ");
+			let limit = null;
+
+			if (!isNaN(args[args.length - 1])) {
+				limit = parseInt(args[args.length - 1]);
+				if (limit > 50)
+					return api.sendMessage("Bạn chỉ có thể tải tối đa 50 ảnh", event.threadID, event.messageID);
+				keyword = event.messageReply ? keyword : keyword.replace(/(\d+)$/, "").trim();
+			}
+
+			if (!keyword)
+				return api.sendMessage('Vui lòng nhập từ khoá tìm kiếm', event.threadID, event.messageID);
+
+			const url = `https://api-thanhali.thanhali.repl.co/pinterest?apikey=ThanhAliVip_1234567890&search=${encodeURIComponent(keyword)}`;
+			const { data } = await axios.get(url);
+			let results = data.data;
+			if (data.length == 0)
+				return api.sendMessage(`Không có kết quả tím kiếm nào cho từ khóa: ${keyword}`, event.threadID, event.messageID);
+
+			if (limit)
+				results = results.slice(0, limit);
+
+			let getAll = await Promise.allSettled(results.map(url => axios.get(url, { responseType: "stream" })
+				.then(({ data: result }) => {
+					const pathDefault = result.path;
+					result.path = pathDefault ? pathDefault : global.utils.randomString(10) + ".png";
+					return result;
+				})
+				.catch(e => {
+					throw e;
+				})
+			));
+
+			getAll = getAll.filter(e => e.status == "fulfilled").map(e => e.value).slice(0, 50);
+
+			return api.sendMessage({
+				body: `Có ${getAll.length} hình ảnh cho từ khóa ${keyword}:\n` + (limit && limit > getAll.length ? `Đã xảy ra lỗi khi tải ${limit - getAll.length} ảnh` : ""),
+				attachment: getAll
+			}, event.threadID, event.messageID);
+		}
+		catch (e) {
+			console.log(e);
+			return api.sendMessage("Đã có lỗi xảy ra", event.threadID, event.messageID);
+		}
+	}
+	else {
+		return api.sendMessage({
+			body: `Bạn có thể dùng:\n${p}${t} search < từ khoá tìm kiếm >\n${p}${t} down < link >\n( Có thể phản hồi link và từ khóa nếu muốn)`
+		}, event.threadID, event.messageID);
+	}
+};
+
+async function getUrlDownloadImage(url) {
+	const res = await axios.get(url);
+	const json = JSON.parse(res.data.split('<script id="__PWS_DATA__" type="application/json">')[1].split('</script>')[0]);
+	const pins = json.props.initialReduxState.pins;
+	let getPins = pins[Object.keys(pins)[0]];
+	if (getPins.images) {
+		const images = getPins.images;
+		const keyLength = Object.keys(images);
+		const latestImages = images.orig || images[keyLength[keyLength.length - 1]];
+		return latestImages.url;
+	} else if (getPins.videos) {
+		getPins = getPins.videos.video_list;
+		return Object.values(getPins).pop().url;
+	}
+}

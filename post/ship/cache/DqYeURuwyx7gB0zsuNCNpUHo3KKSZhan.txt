@@ -1,0 +1,67 @@
+module.exports.config = {
+    name: 'info',
+    version: '1.1.1',
+    hasPermssion: 0,
+    credits: 'DC-Nam',// mod by Q.Huy
+    description: 'Xem thông tin người dùng Facebook',
+    commandCategory: 'Tiện ích',
+    usages: '< tag|reply|uid|username >',
+    cooldowns: 2
+};
+const {
+    get
+} = require('axios');
+const {
+    image
+} = require('image-downloader');
+const {
+    createReadStream
+} = require('fs-extra');
+module.exports.run = async function({
+    api, event, args, Threads, Currencies
+}) {
+    try {      
+        var uqID = event.type == 'message_reply' ? event.messageReply.senderID: Object.keys(event.mentions).length != 0 ? Object.keys(event.mentions)[0]: !!args[0] && !!args[0] ? args[0]: event.senderID;
+        uqID = await get(`https://golike.com.vn/func-api.php?user=${uqID}`);
+        const {threadInfo = {adminIDs: []}} = await Threads.getData(event.threadID) || {};
+        const ban = global.data.userBanned.has(uqID.data.data.uid) ?  "Đang bị cấm" : "Không bị cấm";
+        var permission;
+        if (global.config.SUPERADMIN.includes(uqID.data.data.uid)) permission = `SUPER ADMIN`;
+else if
+(global.config.ADMIN.includes(uqID.data.data.uid)) 
+permission = `ADMIN`; else if (threadInfo.adminIDs.some(i => i.id == uqID.data.data.uid)) permission = `Quản trị viên`; else permission = `Thành viên`;
+        const ciesData = await Currencies.getData(uqID.data.data.uid);
+        const userInfo = await api.getUserInfo(uqID.data.data.uid);
+        const res = await get(`https://apiship-thanhali.thanhali.repl.co/infofacebook?apikey=ThanhAliVip_1234567890&id=${uqID.data.data.uid}`);
+        const {uid,name,birthday,follower,gender,hometown,location,relationship_status,link,quotes,tichxanh} = res.data || {};
+        const dest = `${__dirname}/cache/test.png`;
+        await image({
+            url: 'https://graph.facebook.com/' + uqID.data.data.uid + '/picture?height=720&width=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662', dest
+        });
+        api.sendMessage({
+            body: `
+== 𝐈𝐍𝐅𝐎 𝐅𝐀𝐂𝐄𝐁𝐎𝐎𝐊 ==\n
+→ Tên: ${name}
+→ Giới tính: ${(x = gender),x == 'female'?'Nữ' : x == 'male'?'Nam':'Không xác định'}
+→ Ngày sinh: ${birthday}
+→ Đến từ: ${($h1=res.data.hometown),!!$h1?hometown.name:'Không có dữ liệu'}
+→ Sống tại: ${($h2=res.data.location),!!$h2?location.name:'Không có dữ liệu'}
+→ Tình trạng: ${relationship_status}
+→ Xác minh tài khoản: ${tichxanh ? "Bật" : "Tắt"}
+→ Người theo dõi: ${localeNum(follower)}
+→ ID: ${uid}
+→ Liên kết TCN: ${link}
+→ Tham gia Facebook vào: ${uqID.data.data.date}
+→ Trạng thái: ${userInfo[uqID.data.data.uid].isFriend ? 'Có': 'Không'} kết bạn với Bot
+→ Số dư trên Bot: ${localeNum(ciesData.money)}$
+→ Chức vụ trong nhóm: ${permission}
+→ Kiểm tra cấm: ${ban} dùng Bot
+`.replace(/null|undefined/g, 'Không có dữ liệu').replace(/private/g, 'Thông tin riêng tư'), attachment: createReadStream(dest)
+        }, event.threadID, event.messageID);
+    }catch(e) {
+        api.sendMessage(`${e}`, event.threadID, event.messageID);
+    };
+};
+function localeNum(a){
+    return (a.toLocaleString()).replace(/\,/g, '.');
+};
